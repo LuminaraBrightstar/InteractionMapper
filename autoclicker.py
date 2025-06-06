@@ -51,9 +51,11 @@ class AutoClicker:
         return "break"
 
     def unfocus_hotkey(self, event):
-        if event.widget != self.hotkey_entry:
+    # Only unfocus hotkey_entry if clicking outside it AND not clicking another entry
+        if event.widget != self.hotkey_entry and not isinstance(event.widget, tk.Entry):
             self.hotkey_entry.selection_clear()
             self.master.focus_set()
+
 
     def click_loop(self):
         while self.clicking:
