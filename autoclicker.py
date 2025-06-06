@@ -50,7 +50,10 @@ class AutoClicker:
             return
         if self.listener:
             self.listener.stop()
-        self.listener = keyboard.GlobalHotKeys({hotkey: self.toggle_clicking})
+            self.listener = None
+        # Normalize hotkey (e.g., F6 -> <f6>)
+        normalized = f"<{hotkey.lower()}>"
+        self.listener = keyboard.GlobalHotKeys({normalized: self.toggle_clicking})
         self.listener.start()
 
     def toggle_clicking(self):
