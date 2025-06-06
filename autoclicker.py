@@ -40,14 +40,20 @@ class AutoClicker:
         self.hotkey_var.trace_add("write", lambda *args: self.setup_hotkey_listener())
         self.setup_hotkey_listener()
 
+        master.bind_all("<Button-1>", self.unfocus_hotkey, add="+")
+
     def on_hotkey_press(self, event):
         """Capture a single key press in the hotkey entry."""
         key = event.keysym
-        # Ignore modifier keys
         if len(key) == 1 and not key.isalnum():
             return "break"
         self.hotkey_var.set(key.upper())
         return "break"
+
+    def unfocus_hotkey(self, event):
+        if event.widget != self.hotkey_entry:
+            self.hotkey_entry.selection_clear()
+            self.master.focus_set()
 
     def click_loop(self):
         while self.clicking:
@@ -61,7 +67,6 @@ class AutoClicker:
         if self.listener:
             self.listener.stop()
             self.listener = None
-        # Normalize hotkey (e.g., F6 -> <f6>)
         normalized = f"<{hotkey.lower()}>"
         self.listener = keyboard.GlobalHotKeys({normalized: self.toggle_clicking})
         self.listener.start()
