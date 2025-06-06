@@ -25,6 +25,7 @@ class AutoClicker:
         tk.Label(master, text="Hotkey:").grid(row=1, column=0, padx=5, pady=5)
         self.hotkey_entry = tk.Entry(master, textvariable=self.hotkey_var)
         self.hotkey_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.hotkey_entry.bind("<Key>", self.on_hotkey_press)
 
         self.start_button = tk.Button(master, text="Start", command=self.start_clicking)
         self.start_button.grid(row=2, column=0, padx=5, pady=5)
@@ -38,6 +39,15 @@ class AutoClicker:
 
         self.hotkey_var.trace_add("write", lambda *args: self.setup_hotkey_listener())
         self.setup_hotkey_listener()
+
+    def on_hotkey_press(self, event):
+        """Capture a single key press in the hotkey entry."""
+        key = event.keysym
+        # Ignore modifier keys
+        if len(key) == 1 and not key.isalnum():
+            return "break"
+        self.hotkey_var.set(key.upper())
+        return "break"
 
     def click_loop(self):
         while self.clicking:
