@@ -22,30 +22,30 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
 )
 
-if sys.platform == 'win32':
+if sys.platform == "win32":
     SendInput = ctypes.windll.user32.SendInput
 
     class MouseInput(ctypes.Structure):
         _fields_ = [
-            ('dx', ctypes.c_long),
-            ('dy', ctypes.c_long),
-            ('mouseData', ctypes.c_ulong),
-            ('dwFlags', ctypes.c_ulong),
-            ('time', ctypes.c_ulong),
-            ('dwExtraInfo', ctypes.POINTER(ctypes.c_ulong)),
+            ("dx", ctypes.c_long),
+            ("dy", ctypes.c_long),
+            ("mouseData", ctypes.c_ulong),
+            ("dwFlags", ctypes.c_ulong),
+            ("time", ctypes.c_ulong),
+            ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
         ]
 
-    class Input_I(ctypes.Union):
-        _fields_ = [('mi', MouseInput)]
+    class InputI(ctypes.Union):
+        _fields_ = [("mi", MouseInput)]
 
     class Input(ctypes.Structure):
-        _fields_ = [('type', ctypes.c_ulong), ('ii', Input_I)]
+        _fields_ = [("type", ctypes.c_ulong), ("ii", InputI)]
 
     def click_fast() -> None:
         MOUSEEVENTF_LEFTDOWN = 0x0002
         MOUSEEVENTF_LEFTUP = 0x0004
         extra = ctypes.c_ulong(0)
-        ii_ = Input_I()
+        ii_ = InputI()
         ii_.mi = MouseInput(0, 0, 0, MOUSEEVENTF_LEFTDOWN, 0, ctypes.pointer(extra))
         command = Input(ctypes.c_ulong(0), ii_)
         SendInput(1, ctypes.pointer(command), ctypes.sizeof(command))
@@ -56,6 +56,7 @@ else:
     def click_fast() -> None:
         pyautogui.click()
 
+
 class AutoClicker:
     def __init__(self, master, *, interval=1.0, benchmark=False, hotkey="F6"):
         self.master = master
@@ -64,12 +65,20 @@ class AutoClicker:
         self.interval_var = tk.DoubleVar(value=interval)
         self.benchmark_var = tk.BooleanVar(value=benchmark)
         self.hotkey_var = tk.StringVar(value=hotkey.upper())
+        self.click_count_var = tk.IntVar(value=0)
 
-        tk.Label(master, text="Interval:\nLimit: 0.001").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(
+            master,
+            text="Interval:\nLimit: 0.001",
+        ).grid(row=0, column=0, padx=5, pady=5)
         self.interval_entry = tk.Entry(master, textvariable=self.interval_var)
         self.interval_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tk.Checkbutton(master, text="Benchmark Mode (Disable Limit)", variable=self.benchmark_var).grid(row=1, column=0, columnspan=2, pady=5)
+        tk.Checkbutton(
+            master,
+            text="Benchmark Mode (Disable Limit)",
+            variable=self.benchmark_var,
+        ).grid(row=1, column=0, columnspan=2, pady=5)
 
         tk.Label(master, text="Hotkey:").grid(row=2, column=0, padx=5, pady=5)
         self.hotkey_entry = tk.Entry(master, textvariable=self.hotkey_var)
@@ -79,8 +88,21 @@ class AutoClicker:
         self.start_button = tk.Button(master, text="Start", command=self.start_clicking)
         self.start_button.grid(row=3, column=0, padx=5, pady=5)
 
-        self.stop_button = tk.Button(master, text="Stop", command=self.stop_clicking, state=tk.DISABLED)
+        self.stop_button = tk.Button(
+            master,
+            text="Stop",
+            command=self.stop_clicking,
+            state=tk.DISABLED,
+        )
         self.stop_button.grid(row=3, column=1, padx=5, pady=5)
+
+        tk.Label(master, text="Clicks:").grid(row=4, column=0, padx=5, pady=5)
+        tk.Label(master, textvariable=self.click_count_var).grid(
+            row=4,
+            column=1,
+            padx=5,
+            pady=5,
+        )
 
         self.clicking = False
         self.thread = None
@@ -112,11 +134,15 @@ class AutoClicker:
             self.hotkey_entry.selection_clear()
             self.master.focus_set()
 
+    def increment_count(self) -> None:
+        self.click_count_var.set(self.click_count_var.get() + 1)
+
     def click_loop(self) -> None:
         if self.benchmark_var.get():
             logging.info("Benchmark mode enabled")
             while self.clicking:
                 click_fast()
+                self.master.after(0, self.increment_count)
         else:
             interval = self.get_interval()
             next_time = time.perf_counter()
@@ -124,6 +150,7 @@ class AutoClicker:
                 now = time.perf_counter()
                 if now >= next_time:
                     click_fast()
+                    self.master.after(0, self.increment_count)
                     next_time += interval
                 time.sleep(0.0005)
 
@@ -157,6 +184,7 @@ class AutoClicker:
             self.clicking = True
             self.start_button.config(state=tk.DISABLED)
             self.stop_button.config(state=tk.NORMAL)
+            self.click_count_var.set(0)
             self.thread = threading.Thread(target=self.click_loop, daemon=True)
             self.thread.start()
             logging.info("Clicking started")
@@ -174,6 +202,7 @@ class AutoClicker:
             self.listener = None
         logging.info("Application closing")
         self.master.destroy()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Simple auto clicker")
