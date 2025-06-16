@@ -65,11 +65,11 @@ class AutoClicker:
         self.benchmark_var = tk.BooleanVar(value=benchmark)
         self.hotkey_var = tk.StringVar(value=hotkey.upper())
 
-        tk.Label(master, text="Interval (seconds):").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(master, text="Interval:\nLimit: 0.001").grid(row=0, column=0, padx=5, pady=5)
         self.interval_entry = tk.Entry(master, textvariable=self.interval_var)
         self.interval_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tk.Checkbutton(master, text="Benchmark Mode (Max Speed)", variable=self.benchmark_var).grid(row=1, column=0, columnspan=2, pady=5)
+        tk.Checkbutton(master, text="Benchmark Mode (Disable Limit)", variable=self.benchmark_var).grid(row=1, column=0, columnspan=2, pady=5)
 
         tk.Label(master, text="Hotkey:").grid(row=2, column=0, padx=5, pady=5)
         self.hotkey_entry = tk.Entry(master, textvariable=self.hotkey_var)
