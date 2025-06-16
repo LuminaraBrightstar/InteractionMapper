@@ -1,53 +1,69 @@
-import tkinter as tk
+import argparse
+import ctypes
+import logging
+import sys
 import threading
 import time
-import ctypes
+import tkinter as tk
+
 try:
     import pyautogui
+    pyautogui.FAILSAFE = False
 except ImportError:
     raise SystemExit('pyautogui is required. Install with `pip install pyautogui`.')
+
 try:
     from pynput import keyboard
 except ImportError:
     raise SystemExit('pynput is required. Install with `pip install pynput`.')
 
-SendInput = ctypes.windll.user32.SendInput
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+)
 
-class MouseInput(ctypes.Structure):
-    _fields_ = [("dx", ctypes.c_long),
-                ("dy", ctypes.c_long),
-                ("mouseData", ctypes.c_ulong),
-                ("dwFlags", ctypes.c_ulong),
-                ("time", ctypes.c_ulong),
-                ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
+if sys.platform == 'win32':
+    SendInput = ctypes.windll.user32.SendInput
 
-class Input_I(ctypes.Union):
-    _fields_ = [("mi", MouseInput)]
+    class MouseInput(ctypes.Structure):
+        _fields_ = [
+            ('dx', ctypes.c_long),
+            ('dy', ctypes.c_long),
+            ('mouseData', ctypes.c_ulong),
+            ('dwFlags', ctypes.c_ulong),
+            ('time', ctypes.c_ulong),
+            ('dwExtraInfo', ctypes.POINTER(ctypes.c_ulong)),
+        ]
 
-class Input(ctypes.Structure):
-    _fields_ = [("type", ctypes.c_ulong),
-                ("ii", Input_I)]
+    class Input_I(ctypes.Union):
+        _fields_ = [('mi', MouseInput)]
 
-def click_fast():
-    MOUSEEVENTF_LEFTDOWN = 0x0002
-    MOUSEEVENTF_LEFTUP = 0x0004
-    extra = ctypes.c_ulong(0)
-    ii_ = Input_I()
-    ii_.mi = MouseInput(0, 0, 0, MOUSEEVENTF_LEFTDOWN, 0, ctypes.pointer(extra))
-    command = Input(ctypes.c_ulong(0), ii_)
-    SendInput(1, ctypes.pointer(command), ctypes.sizeof(command))
-    ii_.mi = MouseInput(0, 0, 0, MOUSEEVENTF_LEFTUP, 0, ctypes.pointer(extra))
-    command = Input(ctypes.c_ulong(0), ii_)
-    SendInput(1, ctypes.pointer(command), ctypes.sizeof(command))
+    class Input(ctypes.Structure):
+        _fields_ = [('type', ctypes.c_ulong), ('ii', Input_I)]
+
+    def click_fast() -> None:
+        MOUSEEVENTF_LEFTDOWN = 0x0002
+        MOUSEEVENTF_LEFTUP = 0x0004
+        extra = ctypes.c_ulong(0)
+        ii_ = Input_I()
+        ii_.mi = MouseInput(0, 0, 0, MOUSEEVENTF_LEFTDOWN, 0, ctypes.pointer(extra))
+        command = Input(ctypes.c_ulong(0), ii_)
+        SendInput(1, ctypes.pointer(command), ctypes.sizeof(command))
+        ii_.mi = MouseInput(0, 0, 0, MOUSEEVENTF_LEFTUP, 0, ctypes.pointer(extra))
+        command = Input(ctypes.c_ulong(0), ii_)
+        SendInput(1, ctypes.pointer(command), ctypes.sizeof(command))
+else:
+    def click_fast() -> None:
+        pyautogui.click()
 
 class AutoClicker:
-    def __init__(self, master):
+    def __init__(self, master, *, interval=1.0, benchmark=False, hotkey="F6"):
         self.master = master
         master.title("Simple Auto Clicker")
 
-        self.interval_var = tk.DoubleVar(value=1.0)
-        self.benchmark_var = tk.BooleanVar(value=False)
-        self.hotkey_var = tk.StringVar(value="F6")
+        self.interval_var = tk.DoubleVar(value=interval)
+        self.benchmark_var = tk.BooleanVar(value=benchmark)
+        self.hotkey_var = tk.StringVar(value=hotkey.upper())
 
         tk.Label(master, text="Interval (seconds):").grid(row=0, column=0, padx=5, pady=5)
         self.interval_entry = tk.Entry(master, textvariable=self.interval_var)
@@ -75,6 +91,15 @@ class AutoClicker:
 
         master.bind_all("<Button-1>", self.unfocus_hotkey, add="+")
 
+    def get_interval(self) -> float:
+        """Return the current interval with a minimum of 0.001s."""
+        val = self.interval_var.get()
+        if val < 0.001:
+            logging.info("Interval too low; using 0.001s")
+            val = 0.001
+            self.interval_var.set(val)
+        return val
+
     def on_hotkey_press(self, event):
         key = event.keysym
         if len(key) == 1 and not key.isalnum():
@@ -87,15 +112,13 @@ class AutoClicker:
             self.hotkey_entry.selection_clear()
             self.master.focus_set()
 
-    def click_loop(self):
+    def click_loop(self) -> None:
         if self.benchmark_var.get():
+            logging.info("Benchmark mode enabled")
             while self.clicking:
                 click_fast()
         else:
-            interval = self.interval_var.get()
-            if interval < 0.001:
-                interval = 0.001
-                self.interval_var.set(0.001)
+            interval = self.get_interval()
             next_time = time.perf_counter()
             while self.clicking:
                 now = time.perf_counter()
@@ -112,8 +135,13 @@ class AutoClicker:
             self.listener.stop()
             self.listener = None
         normalized = f"<{hotkey.lower()}>"
-        self.listener = keyboard.GlobalHotKeys({normalized: self.toggle_clicking})
-        self.listener.start()
+        try:
+            self.listener = keyboard.GlobalHotKeys({normalized: self.toggle_clicking})
+            self.listener.start()
+            logging.info("Registered hotkey: %s", hotkey)
+        except Exception as exc:
+            logging.error("Failed to register hotkey %s: %s", hotkey, exc)
+            self.listener = None
 
     def toggle_clicking(self):
         self.master.after(0, self._toggle_clicking)
@@ -131,21 +159,34 @@ class AutoClicker:
             self.stop_button.config(state=tk.NORMAL)
             self.thread = threading.Thread(target=self.click_loop, daemon=True)
             self.thread.start()
+            logging.info("Clicking started")
 
     def stop_clicking(self):
         if self.clicking:
             self.clicking = False
             self.start_button.config(state=tk.NORMAL)
             self.stop_button.config(state=tk.DISABLED)
+            logging.info("Clicking stopped")
 
     def on_close(self):
         if self.listener:
             self.listener.stop()
             self.listener = None
+        logging.info("Application closing")
         self.master.destroy()
 
-if __name__ == "__main__":
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Simple auto clicker")
+    parser.add_argument("--interval", type=float, default=1.0, help="click interval in seconds")
+    parser.add_argument("--hotkey", type=str, default="F6", help="toggle hotkey")
+    parser.add_argument("--benchmark", action="store_true", help="enable benchmark mode")
+    args = parser.parse_args()
+
     root = tk.Tk()
-    app = AutoClicker(root)
+    app = AutoClicker(root, interval=args.interval, benchmark=args.benchmark, hotkey=args.hotkey)
     root.protocol("WM_DELETE_WINDOW", app.on_close)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
