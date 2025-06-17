@@ -60,7 +60,7 @@ else:
 class AutoClicker:
     def __init__(self, master, *, interval=1.0, benchmark=False, hotkey="F6"):
         self.master = master
-        master.title("Simple Auto Clicker")
+        master.title("Interaction Mapper")
 
         self.interval_var = tk.DoubleVar(value=interval)
         self.benchmark_var = tk.BooleanVar(value=benchmark)
