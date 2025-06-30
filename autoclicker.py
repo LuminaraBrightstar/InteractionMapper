@@ -222,3 +222,67 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+ # —— new keyboard‐auto‐press controller —— #
+import pynput.keyboard as _kb
+
+class KeyboardController:
+    def __init__(self, key: str = 'a', interval: float = 1.0):
+        self.key       = key
+        self.interval  = max(0.001, interval)
+        self._pressing = False
+        self._thread   = None
+        self._kbd      = _kb.Controller()
+
+    def _press(self):
+        # press & release once
+        self._kbd.press(self.key)
+        self._kbd.release(self.key)
+
+    def _loop(self):
+        next_t = time.perf_counter()
+        while self._pressing:
+            now = time.perf_counter()
+            if now >= next_t:
+                self._press()
+                next_t += self.interval
+            time.sleep(0.0005)
+
+    def start(self):
+        if not self._pressing:
+            self._pressing = True
+            self._thread   = threading.Thread(target=self._loop, daemon=True)
+            self._thread.start()
+
+    def stop(self):
+        self._pressing = False
+
+    def toggle(self):
+        if self._pressing:
+            self.stop()
+        else:
+            self.start()
+
+ # —— entry point —— #
+def main():
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    parser = argparse.ArgumentParser(description="Modular single-file AutoClicker")
+    # existing args:
+    parser.add_argument("--interval", type=float, default=1.0, help="click interval")
+    parser.add_argument("--hotkey",   type=str,   default="F6", help="click toggle key")
+    # new args for keyboard auto-press:
+    parser.add_argument("--key",         type=str,   default="a",   help="which key to auto-press")
+    parser.add_argument("--key-interval",type=float, default=1.0,   help="keyboard interval")
+    parser.add_argument("--key-hotkey",  type=str,   default="F7",  help="keyboard toggle key")
+    args = parser.parse_args()
+
+    # your existing setup:
+    ctrl = ClickerController(interval=args.interval, benchmark=args.benchmark)
+    hk   = HotkeyManager(args.hotkey, ctrl.toggle)
+    gui  = AutoClickerGUI(ctrl, hk)
+
+    # new keyboard‐press setup:
+    kb   = KeyboardController(key=args.key, interval=args.key_interval)
+    khk  = HotkeyManager(args.key_hotkey, kb.toggle)
+
+    gui.run()
